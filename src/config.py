@@ -43,3 +43,10 @@ DATABASE_NAME = getenv("DATABASE_NAME", "fastapi")
 SECRET_KEY = getenv("SECRET_KEY", "")
 ALGORITHM = getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_DURATION_MINUTES = int(getenv("ACCESS_TOKEN_DURATION_MINUTES", 60))
+
+# MinIO config
+MINIO_URL = getenv("MINIO_URL", "minio-server:9000")
+MINIO_ACCESS_KEY = getenv("MINIO_ACCESS_KEY", "key")
+MINIO_SECRET_KEY = getenv("MINIO_SECRET_KEY", "secret")
+MINIO_SECURE = getenv("MINIO_SECURE", "true").lower() == "true"
+MINIO_BUCKET = getenv("MINIO_BUCKET", "fastapi")
