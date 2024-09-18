@@ -1,6 +1,9 @@
+from uuid import uuid4
+from datetime import datetime
 from fastapi import APIRouter, File, UploadFile, HTTPException, status
 from fastapi.responses import StreamingResponse
 
+from src.database import MongoDBConnectionManager
 from src.minio.minio import upload_file, download_file, generate_presigned_url
 
 
@@ -8,9 +11,51 @@ router = APIRouter()
 
 
 @router.post("/upload")
-async def upload(file: UploadFile = File(...)):
+async def upload(
+    user: str,
+    title: str,
+    description: str,
+    file: UploadFile = File(...),
+):
     try:
-        upload_file(file.file, file.filename)
+        if file.content_type != "image/jpeg":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only JPEG files are allowed.",
+            )
+
+        # add a unique identifier to the filename, ex: file_1234.jpg -> file_1234_<uuid4>.jpg
+        if not file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Filename is required."
+            )
+
+        ext = file.content_type.split("/")[1]
+        parts = file.filename.split(".")
+
+        if len(parts) > 1:
+            if parts[-1] == ext:
+                name = ".".join(parts[:-1])
+            else:
+                name = ".".join(parts)
+
+            filename = f"{name}_{uuid4()}.{ext}"
+        else:
+            filename = f"{file.filename}_{uuid4()}.{ext}"
+
+        upload_file(file.file, filename)
+
+        async with MongoDBConnectionManager() as db:
+            await db.post.insert_one(
+                {
+                    "user": user,
+                    "title": title,
+                    "description": description,
+                    "filename": filename,
+                    "created_at": datetime.now(),
+                }
+            )
+
         return {"message": "File uploaded successfully."}
     except Exception as e:
         raise HTTPException(
