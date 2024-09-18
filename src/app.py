@@ -8,6 +8,7 @@ from src.auth import create_admin_user
 from src.config import FASTAPI_CONFIG, MIDDLEWARE_CONFIG, DEVELOPMENT
 from src.routes.auth.auth import router as auth_router
 from src.routes.files.files import router as files_router
+from src.routes.posts.posts import router as posts_router
 
 
 @asynccontextmanager
@@ -33,3 +34,4 @@ app.add_middleware(CORSMiddleware, **MIDDLEWARE_CONFIG)
 # Endpoints
 app.include_router(auth_router, tags=["Users and Authentication"])
 app.include_router(files_router, prefix="/files", tags=["Files"])
+app.include_router(posts_router, prefix="/posts", tags=["Posts"])

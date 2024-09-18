@@ -46,7 +46,7 @@ async def upload(
         upload_file(file.file, filename)
 
         async with MongoDBConnectionManager() as db:
-            await db.post.insert_one(
+            await db.posts.insert_one(
                 {
                     "user": user,
                     "title": title,
