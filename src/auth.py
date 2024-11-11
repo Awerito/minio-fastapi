@@ -14,13 +14,19 @@ from src.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_DURATION_MINUTES
 
 # Scopes
 SCOPES = {
-    "admin": "Complete access to the API.",
+    # Admin
+    "admin": "Admin user.",
     # User
     "user.me": "The current user.",
     "user.all": "All users.",
     "user.create": "Create a new user.",
     "user.update": "Update a user.",
     "user.delete": "Delete a user.",
+    # Memes
+    "meme.all": "All memes.",
+    "meme.create": "Create a new meme.",
+    "meme.update": "Update a meme.",
+    "meme.delete": "Delete a meme.",
 }
 
 
