@@ -14,10 +14,11 @@ router = APIRouter(prefix="/memes")
 
 
 @router.get("/")
-async def get_memes():
+async def get_memes(page: int = 1, limit: int = 10):
     async with MongoDBConnectionManager() as db:
         # With _id to str
-        memes = await db.memes.find({}).to_list(None)
+        requests = db.memes.find({}).skip((page - 1) * limit)
+        memes = await requests.to_list(length=limit)
         for meme in memes:
             meme["_id"] = str(meme["_id"])
 
