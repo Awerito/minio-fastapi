@@ -5,6 +5,7 @@ from bson import ObjectId
 from datetime import datetime
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends
 
+from src.schemas.filter import MemesFilter
 from src.auth import User, current_active_user
 from src.database import MongoDBConnectionManager
 from src.minio.minio import upload_file, is_image
@@ -14,11 +15,12 @@ router = APIRouter(prefix="/memes")
 
 
 @router.get("/")
-async def get_memes(page: int = 1, limit: int = 10):
+async def get_memes(filter: MemesFilter = Depends(MemesFilter)):
+    sort = {"created_at": -1} if filter.sort_by == "new" else {"likes": -1}
     async with MongoDBConnectionManager() as db:
         # With _id to str
-        requests = db.memes.find({}).skip((page - 1) * limit)
-        memes = await requests.to_list(length=limit)
+        requests = db.memes.find({}, sort=sort).skip((filter.page - 1) * filter.limit)
+        memes = await requests.to_list(length=filter.limit)
         for meme in memes:
             meme["_id"] = str(meme["_id"])
 
