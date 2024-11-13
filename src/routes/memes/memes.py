@@ -55,6 +55,7 @@ async def update_meme(id: str, user: User = Depends(current_active_user)):
         existing_like = await db.likes.find_one({"user": user.username, "meme": id})
 
         if not existing_like:
+            # Add like to user
             add_user_like_result = await db.likes.insert_one(
                 {"user": user.username, "meme": id, "created_at": datetime.now()}
             )
@@ -65,11 +66,34 @@ async def update_meme(id: str, user: User = Depends(current_active_user)):
                     detail="Update failed",
                 )
 
+            # Increment like to post
             inc_like_result = await db.memes.update_one(
                 {"_id": ObjectId(id)}, {"$inc": {"likes": 1}}
             )
 
             if not inc_like_result.modified_count:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Update failed",
+                )
+        else:
+            # Remove like from user
+            remove_user_like_result = await db.likes.delete_one(
+                {"user": user.username, "meme": id}
+            )
+
+            if not remove_user_like_result.deleted_count:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Update failed",
+                )
+
+            # Substract like to post
+            dec_like_result = await db.memes.update_one(
+                {"_id": ObjectId(id)}, {"$inc": {"likes": -1}}
+            )
+
+            if not dec_like_result.modified_count:
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Update failed",
@@ -94,6 +118,12 @@ async def upload(
     if not is_image(file.filename, file.content_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Only image files"
+        )
+
+    # Validate file size (20MB)
+    if not file.size or file.size > 20 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File too large"
         )
 
     # Generate a unique object name

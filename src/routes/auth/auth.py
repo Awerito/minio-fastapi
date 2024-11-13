@@ -8,6 +8,7 @@ from src.auth import (
     User,
     Token,
     UserInDB,
+    UserForm,
     UserCreate,
     get_user,
     get_password_hash,
@@ -59,6 +60,49 @@ async def login(
     return {"access_token": access_token, "token_type": "bearer"}
 
 
+@router.post("/register", response_model=User)
+async def register_user(user: UserForm = Depends(UserForm)):
+    """Allows to an authenticated user to create a basic user with default scopes for memes.
+
+    Parameters
+    ----------
+    username: str
+
+    password: str
+
+    email: Optional(str)
+
+    full_name: Optional(str)
+
+    """
+
+    async with MongoDBConnectionManager() as db:
+        user_exists = await get_user(db, user.username)
+        if user_exists:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="User already exists"
+            )
+
+        hashed_password = get_password_hash(user.password)
+
+        new_user = UserInDB(
+            **user.model_dump(),
+            hashed_password=hashed_password,
+            disabled=False,
+            scopes=[
+                "user.me",
+                "memes.all",
+                "memes.create",
+                "memes.update",
+                "memes.delete",
+            ]
+        )
+
+        await db.users.insert_one(new_user.model_dump())
+
+    raise HTTPException(status_code=status.HTTP_201_CREATED, detail="User created")
+
+
 @router.post("/user/")
 async def create_user(
     user: UserCreate = Depends(UserCreate),
@@ -77,8 +121,6 @@ async def create_user(
     full_name: Optional(str)
 
     disabled: Optional(bool) = False
-
-    password: str
 
     """
 
@@ -120,6 +162,7 @@ async def get_user_by_username(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Not found"
             )
 
+        # TODO: Normal user should not see scopes or disabled
         return user
 
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
