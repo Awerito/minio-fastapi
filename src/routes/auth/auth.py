@@ -1,6 +1,7 @@
+from typing import Optional
 from datetime import timedelta
 from fastapi.security import OAuth2PasswordRequestForm
-from fastapi import APIRouter, HTTPException, Depends, Security, status
+from fastapi import APIRouter, Form, HTTPException, Depends, Security, status
 
 from src.database import MongoDBConnectionManager
 from src.config import ACCESS_TOKEN_DURATION_MINUTES
@@ -8,7 +9,6 @@ from src.auth import (
     User,
     Token,
     UserInDB,
-    UserForm,
     UserCreate,
     get_user,
     get_password_hash,
@@ -61,8 +61,13 @@ async def login(
 
 
 @router.post("/register", response_model=User)
-async def register_user(user: UserForm = Depends(UserForm)):
-    """Allows to an authenticated user to create a basic user with default scopes for memes.
+async def register_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    email: Optional[str] = Form(None),
+    full_name: Optional[str] = Form(None),
+):
+    """Allows to create a basic user with default scopes for memes.
 
     Parameters
     ----------
@@ -77,16 +82,18 @@ async def register_user(user: UserForm = Depends(UserForm)):
     """
 
     async with MongoDBConnectionManager() as db:
-        user_exists = await get_user(db, user.username)
+        user_exists = await get_user(db, username)
         if user_exists:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="User already exists"
             )
 
-        hashed_password = get_password_hash(user.password)
+        hashed_password = get_password_hash(password)
 
         new_user = UserInDB(
-            **user.model_dump(),
+            username=username,
+            email=email,
+            full_name=full_name,
             hashed_password=hashed_password,
             disabled=False,
             scopes=[
@@ -95,7 +102,7 @@ async def register_user(user: UserForm = Depends(UserForm)):
                 "memes.create",
                 "memes.update",
                 "memes.delete",
-            ]
+            ],
         )
 
         await db.users.insert_one(new_user.model_dump())

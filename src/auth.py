@@ -58,13 +58,6 @@ class User(BaseModel):
         }
 
 
-class UserForm(BaseModel):
-    username: str
-    email: str | None = None
-    full_name: str | None = None
-    password: str
-
-
 class UserCreate(User):
     password: str
 
