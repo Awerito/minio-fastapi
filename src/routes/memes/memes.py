@@ -1,14 +1,15 @@
 import os
+import logging
 
 from uuid import uuid4
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, File, UploadFile, HTTPException, status, Depends
 
 from src.schemas.filter import MemesFilter
 from src.auth import User, current_active_user
 from src.database import MongoDBConnectionManager
-from src.minio.minio import upload_file, is_image
+from src.minio.minio import upload_file, is_image, generate_presigned_url
 
 
 router = APIRouter(prefix="/memes")
@@ -18,11 +19,35 @@ router = APIRouter(prefix="/memes")
 async def get_memes(filter: MemesFilter = Depends(MemesFilter)):
     sort = {"created_at": -1} if filter.sort_by == "new" else {"likes": -1}
     async with MongoDBConnectionManager() as db:
-        # With _id to str
         requests = db.memes.find({}, sort=sort).skip((filter.page - 1) * filter.limit)
         memes = await requests.to_list(length=filter.limit)
+
         for meme in memes:
-            meme["_id"] = str(meme["_id"])
+            # With _id to str
+            id = str(meme["_id"])
+            meme["_id"] = id
+
+            # Check img_url expiry and generate a new one if expired
+            expire = meme.get("url_expire", datetime.now() - timedelta(seconds=1))
+            if expire < datetime.now():
+                try:
+                    seven_days = 604800
+                    meme["img_url"] = generate_presigned_url(
+                        meme["object_name"], duration=seven_days
+                    )
+                    meme["url_expire"] = datetime.now() + timedelta(seconds=seven_days)
+                    _ = await db.memes.update_one(
+                        {"_id": ObjectId(id)},
+                        {
+                            "$set": {
+                                "img_url": meme["img_url"],
+                                "url_expire": meme["url_expire"],
+                            }
+                        },
+                    )
+                except Exception as e:
+                    logging.error(e)
+                    logging.error(f"Error generating presigned URL for: {id}")
 
     return memes
 
@@ -145,7 +170,8 @@ async def upload(
         "description": description,
         "object_name": object_name,
         "filename": file.filename,
-        "img_url": url,
+        "img_url": url["img_url"],
+        "url_expire": url["url_expire"],
         "created_at": datetime.now(),
         "user": user.username,
         "likes": 0,

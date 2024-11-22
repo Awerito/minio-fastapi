@@ -4,7 +4,7 @@ import logging
 from minio import Minio
 from fastapi import UploadFile
 from minio.error import S3Error
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from src.config import (
     MINIO_URL,
@@ -32,21 +32,19 @@ def is_image(filename: str, content_type: str) -> bool:
     return valid_ext and valid_content_type
 
 
-def generate_presigned_url(object_name, expiry=604800):
+def generate_presigned_url(object_name, duration=604800):
     try:
         url = minio_client.presigned_get_object(
-            MINIO_BUCKET, object_name, expires=timedelta(seconds=expiry)
+            MINIO_BUCKET, object_name, expires=timedelta(seconds=duration)
         )
         logging.debug(f"Generated presigned URL: {url}")
         return url
     except S3Error as e:
         logging.debug(f"Error generating presigned URL: {e}")
-        raise
+        raise Exception("Error generating presigned URL")
 
 
-async def upload_file(
-    file: UploadFile, object_name: str
-) -> tuple[str | None, str | None]:
+async def upload_file(file: UploadFile, object_name: str) -> tuple[str | None, dict]:
     try:
         # Check if the bucket exists; create it if it doesn't
         if not minio_client.bucket_exists(MINIO_BUCKET):
@@ -65,19 +63,26 @@ async def upload_file(
         )
 
         # Generate a presigned URL for the uploaded file
-        url = generate_presigned_url(object_name)
+        seven_days = 604800
+        url = generate_presigned_url(object_name, duration=seven_days)
         logging.debug(f"File {object_name} uploaded successfully to {MINIO_BUCKET}.")
-        return (None, url)
+        return (
+            None,
+            {
+                "img_url": url,
+                "url_expire": datetime.now() + timedelta(seconds=seven_days),
+            },
+        )
 
     except ValueError as e:
         logging.error(f"Upload failed: {e}")
-        return (str(e), None)
+        return (str(e), {})
     except S3Error as e:
         logging.error(f"Error uploading file to MinIO: {e}")
-        return (str(e), None)
+        return (str(e), {})
     except Exception as e:
         logging.error(f"Unexpected error: {e}")
-        return (str(e), None)
+        return (str(e), {})
 
 
 def download_file(object_name, file_path):
