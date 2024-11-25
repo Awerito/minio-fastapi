@@ -103,6 +103,7 @@ async def update_meme(id: str, user: User = Depends(current_active_user)):
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Update failed",
                 )
+
         else:
             # Remove like from user
             remove_user_like_result = await db.likes.delete_one(
@@ -126,7 +127,7 @@ async def update_meme(id: str, user: User = Depends(current_active_user)):
                     detail="Update failed",
                 )
 
-    return {"message": "Meme updated"}
+        return await db.memes.find_one({"_id": ObjectId(id)}, {"_id": 0, "likes": 1})
 
 
 @router.post("/")
